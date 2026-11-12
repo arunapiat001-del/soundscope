@@ -1,0 +1,40 @@
+name: Build SoundScope debug APK
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Generate Gradle Wrapper using official Gradle
+        run: |
+          mkdir -p "$RUNNER_TEMP/gradle-bootstrap"
+          touch "$RUNNER_TEMP/gradle-bootstrap/settings.gradle"
+          gradle -p "$RUNNER_TEMP/gradle-bootstrap" wrapper --gradle-version 8.9 --distribution-type bin
+          cp -R "$RUNNER_TEMP/gradle-bootstrap/gradle" android/
+          cp "$RUNNER_TEMP/gradle-bootstrap/gradlew" "$RUNNER_TEMP/gradle-bootstrap/gradlew.bat" android/
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.9-bin.zip.sha256 | awk '{print "distributionSha256Sum=" $1}' >> android/gradle/wrapper/gradle-wrapper.properties
+          chmod +x android/gradlew
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SoundScope-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
